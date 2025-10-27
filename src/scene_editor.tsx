@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Download, Trash2, Move, Square, Circle } from "lucide-react";
+import { Download, Trash2, Move, Square, Circle, Upload } from "lucide-react";
 
 type ObjectType = "goal" | "obstacle" | "wall";
 
@@ -22,9 +22,10 @@ const SceneEditor: React.FC = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [nextId, setNextId] = useState(2);
 
-    // Editable grid size
+    // Editable grid size, default 20x20
     const [gridSize, setGridSize] = useState(20);
     const CANVAS_SIZE = 1000;
     const scale = CANVAS_SIZE / gridSize;
@@ -32,7 +33,7 @@ const SceneEditor: React.FC = () => {
     const toCanvas = (val: number): number => val * scale;
     const toGrid = (val: number): number => val / scale;
 
-    // --- Drawing the grid and objects ---
+    // Drawing the grid and objects
     const drawGrid = (ctx: CanvasRenderingContext2D) => {
         ctx.strokeStyle = "#e0e0e0";
         ctx.lineWidth = 1;
@@ -118,7 +119,7 @@ const SceneEditor: React.FC = () => {
         objects.forEach((obj) => drawObject(ctx, obj, obj.id === selectedId));
     }, [objects, selectedId, gridSize]);
 
-    // --- Object detection ---
+    // Object detection
     const getClickedObject = (x: number, y: number): number | null => {
         const gridX = toGrid(x);
         const gridY = gridSize - toGrid(y);
@@ -133,7 +134,7 @@ const SceneEditor: React.FC = () => {
         return null;
     };
 
-    // --- Mouse Handlers ---
+    // Mouse Handlers
     const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -231,7 +232,7 @@ const SceneEditor: React.FC = () => {
         if (isDragging) setIsDragging(false);
     };
 
-    // --- Object editing ---
+    // Object editing
     const updateSelectedObject = (field: keyof SceneObject, value: string) => {
         setObjects((objects) =>
             objects.map((obj) =>
@@ -259,6 +260,48 @@ const SceneEditor: React.FC = () => {
         a.download = "objects.txt";
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const importFromFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target?.result as string;
+            const lines = content.trim().split('\n');
+            const newObjects: SceneObject[] = [];
+            let maxId = 0;
+
+            lines.forEach((line, index) => {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 6) {
+                    const [x, y, width, height, radius, type] = parts;
+                    const id = index + 1;
+                    maxId = Math.max(maxId, id);
+
+                    newObjects.push({
+                        id,
+                        x: parseFloat(x) || 0,
+                        y: parseFloat(y) || 0,
+                        width: parseFloat(width) || 1,
+                        height: parseFloat(height) || 1,
+                        radius: parseFloat(radius) || 1,
+                        type: type as ObjectType,
+                    });
+                }
+            });
+
+            if (newObjects.length > 0) {
+                setObjects(newObjects);
+                setNextId(maxId + 1);
+                setSelectedId(null);
+            }
+        };
+        reader.readAsText(file);
+
+        // Reset the input so the same file can be loaded again
+        event.target.value = '';
     };
 
     const selectedObj = objects.find((o) => o.id === selectedId);
@@ -294,12 +337,27 @@ const SceneEditor: React.FC = () => {
 
                 {/* Sidebar */}
                 <aside className="w-80 h-full overflow-y-auto bg-gray-100 border-l p-4 flex flex-col gap-4">
-                    <button
-                        onClick={exportToFile}
-                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                    >
-                        <Download size={16} /> Export objects.txt
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={exportToFile}
+                            className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                        >
+                            <Download size={16} /> Export
+                        </button>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                        >
+                            <Upload size={16} /> Import
+                        </button>
+                    </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".txt"
+                        onChange={importFromFile}
+                        className="hidden"
+                    />
 
                     {/* Grid Editor */}
                     <div className="bg-white p-4 rounded-lg shadow text-black">
@@ -436,6 +494,7 @@ const SceneEditor: React.FC = () => {
                             <li>Use Select/Move to drag objects</li>
                             <li>Click object to edit properties</li>
                             <li>Dashed circle = repulsion radius</li>
+                            <li>Import .txt files to load layouts</li>
                             <li>Export when done</li>
                         </ul>
                     </div>
