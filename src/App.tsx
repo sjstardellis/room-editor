@@ -1,4 +1,4 @@
-import SceneEditor from './scene_editor';
+import SceneEditor from './components/SceneEditor';
 
 function App() {
     return <SceneEditor />;
